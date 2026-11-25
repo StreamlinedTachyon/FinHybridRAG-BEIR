@@ -224,3 +224,4 @@ __marimo__/
 # Project datasets & indexes
 data/
 indexes/
+results/*.json
