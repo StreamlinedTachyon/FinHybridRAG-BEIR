@@ -1,0 +1,8 @@
+pandas
+numpy
+pyarrow
+requests
+tqdm
+bm25s
+matplotlib
+datasets
