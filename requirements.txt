@@ -6,3 +6,4 @@ tqdm
 bm25s
 matplotlib
 datasets
+sentence-transformers
