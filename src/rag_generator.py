@@ -44,7 +44,7 @@ def verify_citations(answer: str, retrieved_doc_ids: list[str]) -> dict:
             "grounding_rate": 1.0,
         }
 
-    raw_matches = re.findall(r"\bDoc\s*#?(\d+)\b", answer, flags=re.IGNORECASE)
+    raw_matches = re.findall(r"\bDoc(?:ument)?\s*#?(\d+)\b", answer, flags=re.IGNORECASE)
     # Deduplicate while preserving order
     cited_ids = list(dict.fromkeys(raw_matches))
     retrieved_set = {str(did) for did in retrieved_doc_ids}
@@ -123,7 +123,8 @@ def generate_grounded_answer(
     }
     payload = {
         "model": model,
-        "temperature": 0.1,
+        "temperature": 0.0,
+        "seed": 42,
         "max_completion_tokens": 1024,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
