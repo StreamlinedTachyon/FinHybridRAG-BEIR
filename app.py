@@ -427,8 +427,7 @@ def format_answer_html(raw_text: str, valid_doc_ids: set[str]) -> str:
         cls = "cite-pill" if did in valid_doc_ids else "cite-pill cite-pill-invalid"
         return f'<span class="{cls}">Doc {did}</span>'
 
-    safe = re.sub(r"\[Doc\s*(\d+)\]", _pill, safe)
-
+    safe = re.sub(r"[\[\u3010\uff3b]\s*Doc\s*#?(\d+)\s*[\]\u3011\uff3d]", _pill, safe, flags=re.IGNORECASE)
     lines = safe.splitlines()
     out_parts = []
     in_list = False

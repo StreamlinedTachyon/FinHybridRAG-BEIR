@@ -44,7 +44,7 @@ def verify_citations(answer: str, retrieved_doc_ids: list[str]) -> dict:
             "grounding_rate": 1.0,
         }
 
-    raw_matches = re.findall(r"\[Doc\s*(\d+)\]", answer)
+    raw_matches = re.findall(r"[\[\u3010\uff3b]\s*Doc\s*#?(\d+)\s*[\]\u3011\uff3d]", answer, flags=re.IGNORECASE)
     # Deduplicate while preserving order
     cited_ids = list(dict.fromkeys(raw_matches))
     retrieved_set = {str(did) for did in retrieved_doc_ids}
