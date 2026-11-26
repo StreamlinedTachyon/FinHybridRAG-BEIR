@@ -343,8 +343,34 @@ def short_system_label(name: str) -> str:
 
 
 # ---------------- DATA & ENGINE LOADING ----------------
+def ensure_artifacts():
+    """Auto-downloads BEIR FiQA runtime artifacts from HF Hub when running in the cloud."""
+    required = [
+        Path("data/corpus.parquet"),
+        Path("indexes/bm25_index/doc_ids.json"),
+        Path("indexes/dense/embeddings_bge.npy"),
+        Path("indexes/dense/dense_doc_ids.json"),
+    ]
+    if all(p.exists() for p in required):
+        return
+
+    dataset_repo = os.getenv("HF_DATASET_REPO", "theonlyeagle/finhybridrag-beir-artifacts").strip()
+    if not dataset_repo:
+        raise FileNotFoundError(
+            "Local index files not found and HF_DATASET_REPO environment variable is not set."
+        )
+
+    from huggingface_hub import snapshot_download
+    snapshot_download(
+        repo_id=dataset_repo,
+        repo_type="dataset",
+        local_dir=".",
+    )
+
+
 @st.cache_resource(show_spinner="Initializing BM25 + BGE-small indexes (57,638 documents)...")
 def load_retrieval_engine():
+    ensure_artifacts()
     bm25 = BM25Retriever()
     bm25.load_index()
 
@@ -355,6 +381,7 @@ def load_retrieval_engine():
     id_col = "doc_id" if "doc_id" in corpus_df.columns else "_id"
     id_to_text = dict(zip(corpus_df[id_col].astype(str), corpus_df["text"].fillna("").astype(str)))
     return bm25, dense_bge, id_to_text
+
 
 
 @st.cache_resource(show_spinner="Loading optional Cross-Encoder (ms-marco-MiniLM-L-6-v2)...")
@@ -765,37 +792,46 @@ with tab2:
             render_col_cards(w_rrf, lambda s: f"{s:.4f}", show_ranks=True)
 
         if run_ce:
-            ce = load_cross_encoder()
-            pool20 = run_weighted_rrf(b_hits, d_hits, alpha=0.95, rrf_k=60, top_k=20)
-            t_ce0 = time.perf_counter()
-            pairs = [(wb_query, id_to_text.get(h["doc_id"], "")[:1500]) for h in pool20]
-            ce_scores = ce.predict(pairs)
-            t_ce = (time.perf_counter() - t_ce0) * 1000
-
-            reranked = sorted(zip(pool20, ce_scores), key=lambda x: x[1], reverse=True)[:5]
-            st.markdown("---")
-            st.markdown(f"##### 5. Cross-Encoder Reranker (K=20 Pool • CPU Latency: `{t_ce:.1f} ms`)")
-            for rank, (h, sc) in enumerate(reranked, start=1):
-                did = str(h["doc_id"])
-                br = f"#{h['bm25_rank']}" if h.get("bm25_rank") else "—"
-                dr = f"#{h['dense_rank']}" if h.get("dense_rank") else "—"
-                snippet = clean_fiqa_text(id_to_text.get(did, ""), max_chars=280, single_line=True)
-                st.markdown(
-                    f"""
-                    <div class="doc-card">
-                        <div class="doc-meta">
-                            <span class="doc-id-tag">#{rank} • Doc {did}</span>
-                            <span>
-                                <span class="rank-chip">BM25: {br}</span>
-                                <span class="rank-chip">BGE: {dr}</span>
-                                <span class="rank-chip rank-chip-hit">CE: {float(sc):.3f}</span>
-                            </span>
-                        </div>
-                        <div class="doc-snippet">{snippet}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
+            try:
+                ce = load_cross_encoder()
+            except ImportError:
+                st.info(
+                    "Live Cross-Encoder reranking requires PyTorch and is enabled in local mode; "
+                    "full 648-query Cross-Encoder benchmarks are available in Tab 3."
                 )
+                ce = None
+
+            if ce is not None:
+                pool20 = run_weighted_rrf(b_hits, d_hits, alpha=0.95, rrf_k=60, top_k=20)
+                t_ce0 = time.perf_counter()
+                pairs = [(wb_query, id_to_text.get(h["doc_id"], "")[:1500]) for h in pool20]
+                ce_scores = ce.predict(pairs)
+                t_ce = (time.perf_counter() - t_ce0) * 1000
+
+                reranked = sorted(zip(pool20, ce_scores), key=lambda x: x[1], reverse=True)[:5]
+                st.markdown("---")
+                st.markdown(f"##### 5. Cross-Encoder Reranker (K=20 Pool • CPU Latency: `{t_ce:.1f} ms`)")
+                for rank, (h, sc) in enumerate(reranked, start=1):
+                    did = str(h["doc_id"])
+                    br = f"#{h['bm25_rank']}" if h.get("bm25_rank") else "—"
+                    dr = f"#{h['dense_rank']}" if h.get("dense_rank") else "—"
+                    snippet = clean_fiqa_text(id_to_text.get(did, ""), max_chars=280, single_line=True)
+                    st.markdown(
+                        f"""
+                        <div class="doc-card">
+                            <div class="doc-meta">
+                                <span class="doc-id-tag">#{rank} • Doc {did}</span>
+                                <span>
+                                    <span class="rank-chip">BM25: {br}</span>
+                                    <span class="rank-chip">BGE: {dr}</span>
+                                    <span class="rank-chip rank-chip-hit">CE: {float(sc):.3f}</span>
+                                </span>
+                            </div>
+                            <div class="doc-snippet">{snippet}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
 
 # ================= TAB 3: INTERACTIVE PLOTLY BENCHMARKS =================

@@ -6,8 +6,8 @@ tqdm
 bm25s
 matplotlib
 datasets
-sentence-transformers
-sentence-transformers
+fastembed
+huggingface_hub
 streamlit
 plotly
 python-dotenv
