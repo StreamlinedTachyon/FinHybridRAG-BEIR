@@ -420,12 +420,24 @@ def run_weighted_rrf(bm25_hits, dense_hits, alpha: float = 0.95, rrf_k: int = 60
 
 def format_answer_html(raw_text: str, valid_doc_ids: set[str]) -> str:
     safe = html.escape(raw_text)
-    safe = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", safe)
 
     def _pill(match):
-        did = match.group(1)
+        did = next(g for g in match.groups() if g is not None)
         cls = "cite-pill" if did in valid_doc_ids else "cite-pill cite-pill-invalid"
         return f'<span class="{cls}">Doc {did}</span>'
+
+    citation_pattern = (
+        r"\[\s*Doc\s*#?(\d+)\s*\]"
+        r"|【\s*Doc\s*#?(\d+)\s*】"
+        r"|［\s*Doc\s*#?(\d+)\s*］"
+        r"|\(\s*Doc\s*#?(\d+)\s*\)"
+        r"|\*\*Doc\s*#?(\d+)\*\*"
+        r"|\*Doc\s*#?(\d+)\*"
+        r"|\bDoc\s*#?(\d+)\b"
+    )
+    safe = re.sub(citation_pattern, _pill, safe, flags=re.IGNORECASE)
+    safe = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", safe)
+    safe = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", safe)
 
     safe = re.sub(r"[\[\u3010\uff3b]\s*Doc\s*#?(\d+)\s*[\]\u3011\uff3d]", _pill, safe, flags=re.IGNORECASE)
     lines = safe.splitlines()
