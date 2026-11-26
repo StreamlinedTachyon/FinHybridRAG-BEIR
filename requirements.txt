@@ -7,3 +7,7 @@ bm25s
 matplotlib
 datasets
 sentence-transformers
+sentence-transformers
+streamlit
+plotly
+python-dotenv
